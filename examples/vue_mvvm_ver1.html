@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Vueuv -- 一个轻量化的MVVM框架</title>
+  <link href="/favicon.ico" rel="shortcut icon">
+  <script src="../dist/Vueuv.js"></script>
+</head>
+<body>
+<div id="app">
+  <h3 class="cls" v-bind:id="name">{{ title }}</h3>
+  <p v-if="isActive">{{"This is expression: "+ title }}, " ' , {{ name }}</p>
+  <p>Computed: {{computedData}}： <span v-html="test"></span></span></p>
+  <h3 class="static" v-bind:class="{ active: name === 'Vue', 'text-danger': hasError }">v-for</h3>
+  <ul v-show="isActive">
+    <li v-for="item in items">
+      Parent.name: {{name}}; item: {{item.id}}, text:
+      <span v-for="t in item.text">{{t.txt}}</span>
+    </li>
+  </ul>
+  <h3 style="margin-left:25px" v-bind:style="{ color: activeColor, font-size: fontSize }">model & event</h3>
+  <input v-model="name">
+  <input type="button" value="测试" v-on:click="resetInput">
+</div>
+
+<script>
+  var vm = new Vueuv({
+    el      : '#app',
+    data    : {
+      name       : 'Vue',
+      title      : 'Hello',
+      test       : '\<button\>按钮\<\/button\>',
+      items      : [
+        {id: '10000', text: [{txt: 'start'}, {txt: ',10000,'}, {txt: 'end'},]},
+        {id: '10001', text: [{txt: 'start'}, {txt: ',10001,'}, {txt: 'end'},]},
+        {id: '10002', text: [{txt: 'start'}, {txt: ',10002,'}, {txt: 'end'},]},
+      ],
+      isActive   : true,
+      hasError   : false,
+      activeColor: 'blue',
+      fontSize   : '18px',
+    },
+    computed: {
+      computedData: function () {
+        return this.title + ', ' + this.name;
+      },
+    },
+    methods : {
+      resetInput: function () {
+        this.name = 'reset input';
+        this.test = '\<input type="date"\>';
+        this.items[1].text[0].txt = 'changed text';
+        this.isActive = !this.isActive;
+        fontSize = '28px';
+      }
+    }
+  });
+</script>
+</body>
+</html>

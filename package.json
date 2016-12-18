@@ -1,0 +1,31 @@
+{
+  "name": "vueuv.js",
+  "version": "0.0.0",
+  "description": "A JavaScript MVVM library Similar to Vue",
+  "keywords": [
+    "mvvm",
+    "vueuv.js",
+    "framework",
+    "frontend",
+    "Vue"
+  ],
+  "main": "dist/vueuv.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/qieguo2016/vueuv.git"
+  },
+  "bugs": "https://github.com/qieguo2016/vueuv/issues",
+  "scripts": {},
+  "author": "qieguo",
+  "license": "MIT",
+  "devDependencies": {
+    "babel-core": "^6.10.4",
+    "babel-loader": "^6.2.4",
+    "babel-preset-es2015": "^6.9.0",
+    "rollup": "^0.33.0",
+    "rollup-plugin-buble": "^0.12.1",
+    "rollup-plugin-uglify": "^1.0.1",
+    "uglify-js": "^2.6.2",
+    "webpack": "^1.12.14"
+  }
+}
