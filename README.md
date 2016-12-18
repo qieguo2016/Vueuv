@@ -41,10 +41,10 @@ var app = new Vue({
 
 双向绑定的实现核心有两点：1、Object.defineProperty劫持对象的getter、setter，从而实现对数据的监控。2、发布／订阅者模式实现数据与视图的自动同步。
 
-1. Object.defineProperty顾名思义，就是用来定义对象属性的，这里我们主要在getter和setter函数里面插入一些处理方法，当对象被读写的时候处理方法就会被执行了。
+- Object.defineProperty顾名思义，就是用来定义对象属性的，这里我们主要在getter和setter函数里面插入一些处理方法，当对象被读写的时候处理方法就会被执行了。
 关于这个方法的更具体解释，可以看MDN上的解释（[戳我](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Object/defineProperty)）；
 
-2. 发布/订阅者模式，其实就是我们addEventListener那套东西。自己手动实现一个也非常简单：
+- 发布/订阅者模式，其实就是我们addEventListener那套东西。自己手动实现一个也非常简单：
 
 ```javascript
 function EventHandle() {
@@ -235,7 +235,7 @@ Compiler.prototype = {
 
 Compiler主流程是对dom树的递归编译，分为文本节点和元素节点两种分支。
 
-1. 文本节点编译的关键是提取`{{}}`内的表达式，也即是parseTextExp函数，
+#### 文本节点编译的关键是提取`{{}}`内的表达式，也即是parseTextExp函数，
 其作用是将'a {{b+"text"}} c {{d+f}}' 这样的字符串转换成 '"a " + b + "text" + " c" + d + f'这样的表达式。
 
 ```javascript
@@ -255,7 +255,7 @@ function parseTextExp(text) {
 }
 ```
 
-2. 元素节点就要提取各种`v-xxx`指令，然后做三件事：1) 根据指令类型设置节点的属性并将指令内的变量与vm绑定起来; 2) 将表达式加入到监控（订阅者）中 3) 指定相应的视图更新方法。
+#### 元素节点就要提取各种`v-xxx`指令，然后做三件事：1) 根据指令类型设置节点的属性并将指令内的变量与vm绑定起来; 2) 将表达式加入到监控（订阅者）中 3) 指定相应的视图更新方法。
 
 1) 将表达式加入监控就是实例化Watcher，将更新方法传到Watcher的回调函数中。
 
@@ -273,7 +273,7 @@ Compiler.prototype = {
 
 2) 变量绑定非常简单，要注意的作用域要以参数的形式传进来，这样才能做各个层次的绑定。而不同的指令有不同的处理方式，下面简单介绍比较有意思的指令编译
 
-- model双向绑定(v-model="expression")，这里比较有意思的我既要使用监视器来更新input的value，又要用value去更新vm的数据，所以在输入的时候就形成了一个循环依赖了。
+model双向绑定(v-model="expression")，这里比较有意思的我既要使用监视器来更新input的value，又要用value去更新vm的数据，所以在输入的时候就形成了一个循环依赖了。
 当然，更新函数会判断新旧值，只有新旧值不同才调用更新方法。然后，我们的中文输入法却因此而不能正常工作了：
 input事件的value取值会取拼音字母，然后更新函数直接将字母拿去反过来更新了value，所以根本就不能选词了。解决办法非常简单，在事件中加入一个标志就可以了，更新方法里面判断这个标志来判断是否要更新。
 
@@ -300,7 +300,7 @@ Compiler.prototype = {
 }
 ```
 
-- if/for指令的懒编译：想象一下if为false的时候你先编译了父元素，然后，然后就没有了！！所以，要先编译子元素，然后编译父元素根据值来判断是否要保留Dom节点。
+if/for指令的懒编译：想象一下if为false的时候你先编译了父元素，然后，然后就没有了！！所以，要先编译子元素，然后编译父元素根据值来判断是否要保留Dom节点。
 还有就是指令本身也要在编译完别的指令才编译，否则你节点都没有了，别的指令还怎么编译？当你if为true的时候，没编译的指令就有问题了，所以要最后编译if。
 for也是同理，先编译好其他指令，最后只需要克隆一下节点就可以了，不需要反复编译相同的指令。
 
@@ -336,8 +336,7 @@ Compiler.prototype = {
 }
 ```
 
-- **for指令的编译：指令里面最有意思的就是这个for指令了！最有意思的地方就是，实现子元素的绑定取值。**
-比如一个指令:
+**for指令的编译：指令里面最有意思的就是这个for指令了！最有意思的地方就是，实现子元素的绑定取值。** 比如一个指令:
 
 ```html
 <li v-for="item in items">
@@ -393,7 +392,9 @@ var updater = {
 
 ## 表达式的求值
 
-1. 首先是双大括号文本表达式的解。假如有`'{{b+"text"}} c {{d+f}}'`这样的一个绑定表达式，最后的求值结果就是`scope.b + "text" + " c " + scope.d + scope.f` 。
+### 首先是双大括号文本表达式的解。
+
+假如有`'{{b+"text"}} c {{d+f}}'`这样的一个绑定表达式，最后的求值结果就是`scope.b + "text" + " c " + scope.d + scope.f` 。
 做法有两种，一种是构造一个函数，函数体就是要求值的表达式，返回值为表达式的结果，执行这个函数就可以得到求值结果，构造这样的函数可以使用`new Function`来构造。
 上述还有一个作用域的限制，可以根据有无""来判断是否变量或者直接改造parseTextExp函数返回变量的数组，然后给每个变量加一个`scope.`。
 
@@ -419,7 +420,8 @@ function computeExpression(exp, scope) {
 }
 ```
 
-2. class指令的求值。
+### class指令的求值。
+
 class指令的对象语法是这样的：<div class="static" v-bind:class="{ active: isActive, 'text-danger': hasError }"></div>
 最后要根据isActive、hasError的值返回相应的class。而isActive还可以computed属性或者表达式，这里你会怎么实现呢？
 
@@ -527,8 +529,11 @@ vue中的prop是父到子的单向数据流，event则是组件间的订阅/发�
 ----
 
 Reference：
+
 1. [开发vue（或类似的MVVM框架）的过程中，需要面对的主要问题有哪些？](https://www.zhihu.com/question/53176471)
+
 2. [剖析vue实现原理，自己动手实现mvvm](https://github.com/DMQ/mvvm#_2)
+
 3. [官网介绍](http://cn.vuejs.org/v2/guide/index.html)
 
 
