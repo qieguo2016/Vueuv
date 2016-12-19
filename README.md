@@ -8,7 +8,7 @@ MVVM原理实现非常巧妙，真心佩服作者的构思；编译部分没用�
 
 ## How to use
 
-引入[Vueuv.js](https://github.com/qieguo2016/vueuv/master/dist/Vueuv.js)后，用法就跟Vue一毛一样了：
+引入[Vueuv.js](https://github.com/qieguo2016/Vueuv/blob/master/dist/Vueuv.js)后，用法就跟Vue一毛一样了：
 
 ```html
 <div id="app">
