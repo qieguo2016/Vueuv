@@ -49,12 +49,12 @@ Compiler.prototype = {
 
 	// 编译节点元素，调用相应的指令处理方法或者调用compile继续编译
 	compileElementNode: function (node, scope) {
-		var attrs = node.attributes;
+		var attrs = [].slice.call(node.attributes);  // attributes是动态的，要复制到数组里面去遍历
 		var lazyCompileDir = '';
 		var lazyCompileExp = '';
 		var self = this;
 		scope = scope || this.vm;
-		[].forEach.call(attrs, function (attr) {
+		attrs.forEach(function (attr) {
 			var attrName = attr.name;
 			var exp = attr.value;
 			var dir = checkDirective(attrName);
@@ -139,17 +139,6 @@ Compiler.prototype = {
 		this.bindWatcher(node, scope, exp, 'style', 'display')
 	},
 
-	// if指令 v-if="expression"
-	ifHandler: function (node, scope, exp, prop) {
-		// 先编译子元素，然后根据表达式决定是否插入dom中
-		// PS：这里需要先插入一个占位元素来定位，不能依赖其他元素，万一其他元素没了呢？
-		this.compile(node, scope);
-		var refNode = document.createTextNode('');
-		node.parentNode.insertBefore(refNode, node);
-		var current = node.parentNode.removeChild(node);
-		this.bindWatcher(current, scope, exp, 'dom', refNode); // refNode是引用关系，移动到parentNode后会自动更新位置，所以可以传入
-	},
-
 	// 属性指令 v-bind:id="id", v-bind:class="cls"
 	bindHandler: function (node, scope, exp, attr) {
 		switch (attr) {
@@ -171,6 +160,17 @@ Compiler.prototype = {
 		this.bindWatcher(node, scope, exp, 'attr', attr)
 	},
 
+	// if指令 v-if="expression"
+	ifHandler: function (node, scope, exp, prop) {
+		// 先编译子元素，然后根据表达式决定是否插入dom中
+		// PS：这里需要先插入一个占位元素来定位，不能依赖其他元素，万一其他元素没了呢？
+		this.compile(node, scope);
+		var refNode = document.createTextNode('');
+		node.parentNode.insertBefore(refNode, node);
+		var current = node.parentNode.removeChild(node);
+		this.bindWatcher(current, scope, exp, 'dom', refNode); // refNode是引用关系，移动到parentNode后会自动更新位置，所以可以传入
+	},
+
 	// 列表指令 v-for="item in items"
 	forHandler: function (node, scope, exp, prop) {
 		var self = this;
@@ -181,14 +181,24 @@ Compiler.prototype = {
 			arr = arr[arrNames[1]];
 		}
 		var parentNode = node.parentNode;
-		arr.forEach(function (item) {
-			var cloneNode = node.cloneNode(true);
-			parentNode.insertBefore(cloneNode, node);
-			var forScope = Object.create(scope);  // 注意每次循环要生成一个新对象
-			forScope[itemName] = item;
-			self.compile(cloneNode, forScope);  // @FIXME 同样的编译应该有缓存机制
+		var startNode = document.createTextNode('');
+		var endNode = document.createTextNode('');
+		var range = document.createRange();
+		parentNode.replaceChild(endNode, node); // 去掉原始模板
+		parentNode.insertBefore(startNode, endNode);
+		var watcher = new Watcher(arrNames.join('.'), scope, function (newArray, oldArray, options) {
+			// @todo 可以根据options传过来的method和args像操作数组一样操作dom
+			range.setStart(startNode, 0);
+			range.setEnd(endNode, 0);
+			range.deleteContents();
+			newArray.forEach(function (item) {
+				var cloneNode = node.cloneNode(true);
+				parentNode.insertBefore(cloneNode, endNode);
+				var forScope = Object.create(scope);  // 注意每次循环要生成一个新对象
+				forScope[itemName] = item;
+				self.compile(cloneNode, forScope);  // @FIXME 同样的编译应该有缓存机制
+			});
 		});
-		parentNode.removeChild(node);   // 去掉原始模板
 	},
 };
 
@@ -219,6 +229,12 @@ function checkDirective(attrName) {
 		var parse = attrName.substring(2).split(':');
 		dir.type = parse[0];
 		dir.prop = parse[1];
+	} else if (attrName.indexOf('@') === 0) {
+		dir.type = 'on';
+		dir.prop = attrName.substring(1);
+	} else if (attrName.indexOf(':') === 0) {
+		dir.type = 'bind';
+		dir.prop = attrName.substring(1);
 	}
 	return dir;
 }
@@ -241,8 +257,9 @@ function parseTextExp(text) {
 	return tokens.join('+');
 }
 
-// 解析class表达式，@todo 目前未写数组语法
+// 解析class表达式
 // <div class="static" v-bind:class="{ active: isActive, 'text-danger': hasError }"> </div>
+// <div v-bind:class="[isActive ? activeClass : '', errorClass]">
 function parseClassExp(exp) {
 	if (!exp) {
 		return;
@@ -259,12 +276,16 @@ function parseClassExp(exp) {
 		});
 	} else if (regArr.test(exp)) {
 		var subExp = exp.replace(/[\s\[\]]/g, '').split(',');
+		result = subExp.map(function (sub) {
+			return '(' + sub + ')' + '+" "';
+		});
 	}
 	return result.join('+');  // 拼成 (a?"acls ":"")+(b?"bcls ":"")的形式
 }
 
-// 解析style表达式 @todo 目前未写数组语法
+// 解析style表达式 @todo 目前未写单个对象语法和数组语法
 // <div v-bind:style="{ color: activeColor, font-size: fontSize }"></div>
+// <div v-bind:style="[baseStyles, overridingStyles]">
 function parseStyleExp(exp) {
 	if (!exp) {
 		return;
@@ -275,13 +296,15 @@ function parseStyleExp(exp) {
 	if (regObj.test(exp)) {
 		var subExp = exp.replace(/[\s\{\}]/g, '').split(',');
 		subExp.forEach(function (sub) {
-			// "color:"activeColor;"font-size:"fontSize;
 			var key = '"' + sub.split(':')[0].replace(/['"`]/g, '') + ':"+';
 			var value = sub.split(':')[1];
 			result.push(key + value + '+";"');
 		});
 	} else if (regArr.test(exp)) {
 		var subExp = exp.replace(/[\s\[\]]/g, '').split(',');
+		result = subExp.map(function (sub) {
+			return '(' + sub + ')' + '+";"';
+		});
 	}
 	return result.join('+');  // 拼成 (a?"acls ":"")+(b?"bcls ":"")的形式
 }
@@ -317,5 +340,5 @@ var updater = {
 		} else {
 			nextNode.parentNode.removeChild(node);
 		}
-	}
+	},
 };

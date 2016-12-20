@@ -4,16 +4,19 @@
   <meta charset="UTF-8">
   <title>Vueuv -- 一个轻量化的MVVM框架</title>
   <link href="/favicon.ico" rel="shortcut icon">
-  <script src="../dist/Vueuv.js"></script>
+  <script src="../src/Compiler.js"></script>
+  <script src="../src/Dependence.js"></script>
+  <script src="../src/Observer.js"></script>
+  <script src="../src/Vueuv.js"></script>
+  <script src="../src/Watcher.js"></script>
 </head>
 <body>
 <div id="app">
   <h3 class="cls" :id="name">{{ title }}</h3>
   <p v-if="isActive">{{"This is expression: "+ title }}, " ' , {{ name }}</p>
   <p>Computed: {{computedData}}： <span v-html="test"></span></span></p>
-  <h3 class="static"
-      v-show="isActive"
-      :class="{ active: name === 'Vue', 'text-danger': hasError }">bind:class test</h3>
+  <h3 class="static" v-show="isActive"
+      v-bind:class="{ active: name === 'Vue', 'text-danger': hasError }">bind:class test</h3>
   <h3 v-if="isActive" v-bind:class="[isActive ? activeClass : '', errorClass]">bind:class test</h3>
   <ul v-show="isActive">
     <li v-for="item in items">
@@ -23,8 +26,8 @@
   </ul>
   <h3 style="margin-left:25px" v-bind:style="{ color: activeColor, font-size: fontSize }">model & event</h3>
   <input v-model="name"><br>
-  <input type="button" value="测试" v-on:click="resetInput">
-  <input type="button" value="增加Item" @click="addItem">
+  <input type="button" value="测试" @click="resetInput">
+  <input type="button" value="增加Item" v-on:click="addItem">
 </div>
 
 <script>

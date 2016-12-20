@@ -6,6 +6,9 @@ MVVM原理实现非常巧妙，真心佩服作者的构思；编译部分没用�
 
 > 不造个轮子，你还真以为你会写代码了？
 
+**最新更新 @2016.12.20**
+增加了数组的监控，绑定指令总算是完整了！！实现原理也补充到下文了，因为跟对象监控原理差不多，就没详细展开写。手指好累，不多说了，我先去楼下的大保健按摩下。哟吼吼吼！~：（
+
 ## How to use
 
 引入[Vueuv.js](https://github.com/qieguo2016/Vueuv/blob/master/dist/Vueuv.js)后，用法就跟Vue一毛一样了：
@@ -99,7 +102,6 @@ Observer.prototype.observe = function (data) {
 Observer.prototype.defineReactive = function (data, key, val) {
 	var dep = new Dep();
 	var self = this;
-	self.observe(val);   // 递归对象属性到基本类型为止
 	Object.defineProperty(data, key, {
 		enumerable  : true,    // 枚举
 		configurable: false,   // 不可再配置
@@ -112,10 +114,19 @@ Observer.prototype.defineReactive = function (data, key, val) {
 				return;
 			}
 			val = newVal;  // setter本身已经做了赋值，val作为一个闭包变量，保存最新值
-			self.observe(newVal);
+			if (Array.isArray(newVal)) {
+      	self.observeArray(newVal, dep);  // 递归监视，数组的监视要分开
+      } else {
+      	self.observe(newVal);   // 递归对象属性到基本类型为止
+      }
 			dep.notify();  // 触发通知
 		},
 	});
+	if (Array.isArray(val)) {
+  	self.observeArray(val, dep);  // 递归监视，数组的监视要分开
+  } else {
+  	self.observe(val);   // 递归对象属性到基本类型为止
+  }
 };
 ```
 
@@ -168,10 +179,11 @@ Watcher.prototype = {
 	},
 	update: function () {
 		var newVal = this.get();
-		if (this.value != newVal) {
-			this.callback && this.callback(newVal, this.value);
-			this.value = newVal;
-		}
+		// 这里有可能是对象/数组，所以不能直接比较，可以借助JSON来转换成字符串对比
+    if (!isEqual(this.value, newVal)) {
+    	this.callback && this.callback(newVal, this.value, options);
+    	this.value = fullCopy(newVal);
+    }
 	}
 }
 ```
@@ -218,10 +230,12 @@ Compiler.prototype = {
 		this.textHandler(node, scope, exp);
 	},
 	compileElementNode: function (node, scope) {
-		var attrs = node.attributes;
+		// var attrs = node.attributes;
+		var attrs = [].slice.call(node.attributes);
 		var self = this;
 		scope = scope || this.vm;
-		[].forEach.call(attrs, function (attr) {
+		// [].forEach.call(attrs, function (attr) { // attributes是动态的，会漏点某些属性
+		attrs.forEach(function (attr) {
 			var attrName = attr.name;
 			var exp = attr.value;
 			var dir = checkDirective(attrName);
@@ -381,7 +395,6 @@ Compiler.prototype = {
 看起来，这里用forScope=scope也可以呀，但是这样的话，`forScope[itemName]`就是同一个对象了，没有列表的效果了。
 再者，虽然可以深复制scope造出列表，但是与scope脱离了关系，没有绑定的关系了！**所以，这里还是要用原型链！**
 
-
 3) Compiler里面还有一个比较重要的点就是更新视图方法。
 这里说说if指令的更新方法，为了要在指定位置插入节点，我们可以先在该位置加一个占位的textNode，然后将这个textNode传给更新方法，
 后续就根据这个占位的textNode进行dom的插删。
@@ -527,7 +540,118 @@ Vueuv.prototype = {
 
 -------
 
-以上就是Vue MVVM双向绑定的简易实现了，Vue里面还有一个非常重要的点就是component的实现。这也是Vue能这么火的关键因素吧，
+## 【补充】数组监视 @2016.12.20
+
+for指令还要监视数组的动态变化从而增减for绑定的视图项。回到Observer中，现在要区别对待数组和对象，在哪里做分支比较好呢？
+想象一下我们的使用场景，有时候我们可能会对整个数组进行set操作，所以，数组本身的set也是要被监视的，因此可以想到是要在劫持了set之后进行分支，也就是遍历子元素的方式做区分。
+当然，也不要忘了setter内部的递归监视新值，不然设置的新值就没有监视了。
+
+```javascript
+Observer.prototype = {
+  // ...
+	observeObject: function (data, key, val) {
+		var dep = new Dep();   // 每个变量单独一个dependence列表
+		var self = this;
+		Object.defineProperty(data, key, {
+			// ...
+			set         : function (newVal) {
+				if (val === newVal) {
+					return;
+				}
+				val = newVal;  // setter本身已经做了赋值，val作为一个闭包变量，保存最新值
+				if (Array.isArray(newVal)) {
+					self.observeArray(newVal, dep);  // 递归监视，数组的监视要分开
+				} else {
+					self.observe(newVal);   // 递归对象属性到基本类型为止
+				}
+				dep.notify();  // 触发通知
+			},
+		});
+		if (Array.isArray(val)) {
+			self.observeArray(val, dep);  // 递归监视，数组的监视要分开
+		} else {
+			self.observe(val);   // 递归对象属性到基本类型为止
+		}
+	},
+};
+```
+
+接着看数组的监控，实现方法是通过监视数组的几个变异方法来实现的，也就是更改数组的原型链。
+在调用那些会更改数组的方法时，发出变更通知，原理跟对象的监视也是一毛一样的，直接看代码吧。
+
+```javascript
+Observer.prototype = {
+  // ...
+	observeArray: function (arr, dep) {
+		var self = this;
+		arr.__proto__ = self.defineReactiveArray(dep);
+		arr.forEach(function (item) {
+			self.observe(item);
+		});
+	},
+	defineReactiveArray: function (dep) {
+		var arrayPrototype = Array.prototype;
+		var arrayMethods = Object.create(arrayPrototype);
+		var self = this;
+
+		// 重写/定义数组变异方法
+		var methods = [
+			'pop',
+			'push',
+			'sort',
+			'shift',
+			'splice',
+			'unshift',
+			'reverse'
+		];
+
+		methods.forEach(function (method) {
+			// 得到单个方法的原型对象，不能直接修改整个Array原型，那是覆盖
+			var original = arrayPrototype[method];
+			// 给数组方法的原型添加监监视
+			Object.defineProperty(arrayMethods, method, {
+				value       : function () {
+					// 获取函数参数
+					var args = [];
+					for (var i = 0, l = arguments.length; i < l; i++) {
+						args.push(arguments[i]);
+					}
+					// 数组方法的实现
+					var result = original.apply(this, args);
+					// 数组插入项
+					var inserted
+					switch (method) {
+						case 'push':
+						case 'unshift':
+							inserted = args
+							break
+						case 'splice':
+							inserted = args.slice(2)
+							break
+					}
+					// 监视数组插入项，而不是重新监视整个数组
+					if (inserted && inserted.length) {
+						self.observeArray(inserted, dep)
+					}
+					// 触发更新
+					dep.notify({method, args});
+					return result
+				},
+				enumerable  : true,
+				writable    : true,
+				configurable: true
+			});
+		});
+	return arrayMethods;
+}
+};
+```
+
+-------
+
+补齐了数组监视，Vue MVVM双向绑定的简易实现就完整啦！（泪奔！。。。）
+
+Vue里面还有一个非常重要的点就是component的实现。这也是Vue能这么火的关键因素吧，
 component可以看做是上述实现的一个子集，为了实现组件间的通信而增加了prop和event。
 vue中的prop是父到子的单向数据流，event则是组件间的订阅/发布者。实现的思路想了下，不过要做的东西不少，所以看心情吧，爽了的时候再补上~~
 

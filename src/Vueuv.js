@@ -2,7 +2,7 @@
  * @authors     : qieguo
  * @date        : 2016/12/15
  * @version     : 1.0
- * @description : MVVM，框架入口，各个模块的容器，data的代理。
+ * @description : Vueuv，框架主体与入口，各个模块的容器，data/method/computed等的代理。
  */
 
 function Vueuv(options) {
@@ -10,6 +10,12 @@ function Vueuv(options) {
 	this.$el = typeof options.el === 'string'
 		? document.querySelector(options.el)
 		: options.el || document.body;
+	options = Object.assign({},
+		{
+			computed: {},
+			methods : {}
+		},
+		options);
 	this.$options = options;
 	this.window = window;	  // 为了exp中全局对象（Math、location等）的计算取值
 
