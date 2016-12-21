@@ -158,22 +158,6 @@ label[for='toggle-all'] {
 	border-bottom: none;
 }
 
-.todo-list li.editing {
-	border-bottom: none;
-	padding: 0;
-}
-
-.todo-list li.editing .edit {
-	display: block;
-	width: 506px;
-	padding: 13px 17px 12px 17px;
-	margin: 0 0 0 43px;
-}
-
-.todo-list li.editing .view {
-	display: none;
-}
-
 .todo-list li .toggle {
 	text-align: center;
 	width: 40px;
@@ -190,10 +174,6 @@ label[for='toggle-all'] {
 
 .todo-list li .toggle:after {
 	content: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="-10 -18 100 135"><circle cx="50" cy="50" r="50" fill="none" stroke="#ededed" stroke-width="3"/></svg>');
-}
-
-.todo-list li .toggle:checked:after {
-	content: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="-10 -18 100 135"><circle cx="50" cy="50" r="50" fill="none" stroke="#bddad5" stroke-width="3"/><path fill="#5dc2af" d="M72 25L42 71 27 56l-4 4 20 20 34-52z"/></svg>');
 }
 
 .todo-list li label {
@@ -231,7 +211,7 @@ label[for='toggle-all'] {
 }
 
 .todo-list li .destroy:after {
-	content: 'X';
+	content: 'x';
 }
 
 .todo-list li:hover .destroy {
@@ -345,15 +325,31 @@ html .clear-completed:active {
 	text-decoration: underline;
 }
 
-.circle {
-    border-radius: 50%;
-    width: 30px;
-    height: 30px;
-    margin: 0;
-    display: inline-block;
-    border: 1px solid #ccc;
-    position: absolute;
-    margin-top: 15px;
+/*************  edit by qieguo   ***********/
+
+.view.completed .toggle:after {
+	content: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="-10 -18 100 135"><circle cx="50" cy="50" r="50" fill="none" stroke="#bddad5" stroke-width="3"/><path fill="#5dc2af" d="M72 25L42 71 27 56l-4 4 20 20 34-52z"/></svg>');
+}
+
+.view.completed label {
+	color: #d9d9d9;
+	text-decoration: line-through;
+}
+
+.todo-list li.editing {
+	border-bottom: none;
+	padding: 0;
+}
+
+.todo-list .editing.edit {
+	display: block;
+	width: 506px;
+	padding: 13px 17px 12px 17px;
+	margin: 0 0 0 43px;
+}
+
+.todo-list .editing.view {
+	display: none;
 }
 
 /*

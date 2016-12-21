@@ -28,11 +28,18 @@
       <ul class="todo-list">
         <li class="todo"
             v-for="todo in displayTodos">
-          <div class="view" :class="{completed: todo.completed}">
-            <input class="toggle" type="radio" v-model="todo.completed">
-            <label>{{ todo.title }}</label>
+          <div class="view" :class="{completed: todo.completed,editing: todo.editing}">
+            <span class="toggle" @click="completeTodo(todo)"></span>
+            <label @dblclick="editTodo(todo)">{{ todo.title }}</label>
             <button class="destroy" @click="removeTodo(todo)"></button>
           </div>
+          <input class="edit"
+                 :class="{editing: todo.editing}"
+                 type="text"
+                 v-model="todo.title"
+                 @blur="doneEdit(todo)">
+          <!--@keyup.enter="doneEdit(todo)"-->
+          <!--@keyup.esc="cancelEdit(todo)">-->
         </li>
       </ul>
     </section>
@@ -60,27 +67,37 @@
       newTodo: '',
       todos: [],
       displayType: '',
-      editedTodo: null,
-      check: false,
-      test: '',
-      sex: null,
     },
     methods: {
       addTodo: function (e) {
         var value = e.target.value;
         if (e.keyCode === 13 && value) {
-          this.todos.push({completed: false, title: value});
+          this.todos.push({
+            completed: false,
+            editing: false,
+            title: value
+          });
           this.newTodo = '';
         }
       },
       removeTodo: function (todo) {
         this.todos.$remove(todo);
       },
-      doneEdit: function () {
-        console.log('doneEdit');
+      completeTodo: function (todo) {
+        todo.completed = !todo.completed;
       },
       editTodo: function (todo) {
-        console.log('editTodo', todo);
+        todo.editing = true;
+      },
+      doneEdit: function (todo) {
+        if (!todo.editing) {
+          return
+        }
+        todo.title = todo.title.trim();
+        if (!todo.title) {
+          this.removeTodo(todo)
+        }
+        todo.editing = false;
       },
       changeDisplayType: function (type) {
         this.displayType = type;
