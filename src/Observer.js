@@ -139,7 +139,7 @@ Observer.prototype = {
 		 */
 		Object.defineProperty(arrayMethods, '$remove', {
 			value: function (item) {
-				let index = this.indexOf(item);
+				var index = this.indexOf(item);
 				if (index > -1) {
 					return this.splice(index, 1);
 				}

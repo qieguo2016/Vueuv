@@ -6,7 +6,12 @@
   <link href="/favicon.ico" rel="shortcut icon">
   <link rel="stylesheet" href="./iconoo.min.css">
   <link rel="stylesheet" href="./index.css">
-  <script src="./Vueuv.js"></script>
+  <script src="../../src/Compiler.js"></script>
+  <script src="../../src/Dependence.js"></script>
+  <script src="../../src/Observer.js"></script>
+  <script src="../../src/Watcher.js"></script>
+  <script src="../../src/util.js"></script>
+  <script src="../../src/Vueuv.js"></script>
 </head>
 <body>
 <div id="app">
@@ -24,7 +29,7 @@
         <li class="todo"
             v-for="todo in displayTodos">
           <div class="view" :class="{completed: todo.completed}">
-            <input class="toggle" type="checkbox" v-model="todo.completed">
+            <input class="toggle" type="radio" v-model="todo.completed">
             <label>{{ todo.title }}</label>
             <button class="destroy" @click="removeTodo(todo)"></button>
           </div>
@@ -50,36 +55,39 @@
 <script>
 
   var vm = new Vueuv({
-    el      : '#app',
-    data    : {
-      newTodo    : '',
-      todos      : [],
+    el: '#app',
+    data: {
+      newTodo: '',
+      todos: [],
       displayType: '',
-      editedTodo : null,
+      editedTodo: null,
+      check: false,
+      test: '',
+      sex: null,
     },
-    methods : {
-      addTodo          : function (e) {
+    methods: {
+      addTodo: function (e) {
         var value = e.target.value;
         if (e.keyCode === 13 && value) {
           this.todos.push({completed: false, title: value});
           this.newTodo = '';
         }
       },
-      removeTodo       : function (todo) {
+      removeTodo: function (todo) {
         this.todos.$remove(todo);
       },
-      doneEdit         : function () {
+      doneEdit: function () {
         console.log('doneEdit');
       },
-      editTodo         : function (todo) {
+      editTodo: function (todo) {
         console.log('editTodo', todo);
       },
       changeDisplayType: function (type) {
         this.displayType = type;
-      }
+      },
     },
     computed: {
-      activeTodos : function () {
+      activeTodos: function () {
         return this.todos.filter(function (item) {
           return item.completed === false;
         });

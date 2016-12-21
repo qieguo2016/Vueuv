@@ -13,54 +13,76 @@
 </head>
 <body>
 <div id="app">
-  <h3 class="cls" :id="name">{{ title }}</h3>
-  <p v-if="ifTest.show">{{"This is expression: "+ title }}, " ' , {{ ifTest.text }}</p>
-  <p v-if="isActive">{{"This is expression: "+ title }}, " ' , {{ name }}</p>
-  <p>Computed: {{computedData}}： <span v-html="test"></span></p>
-  <p>title's {{ title }}</p>
-  <p>name's {{ name }}</p>
-  <p v-html="test"></p>
-  <h3 class="static" v-show="isActive"
-      v-bind:class="{ active: name === 'Vue', 'text-danger': hasError }">bind:class test</h3>
-  <h3 v-if="isActive" v-bind:class="[isActive ? activeClass : '', errorClass]">bind:class test</h3>
-  <ul v-show="isActive">
-    <li v-for="item in items">
-      {{$index}}, Parent.name: {{name}}; item: {{item.id}}, text:
-      <span v-for="t in item.text">{{t.txt}}</span>
-    </li>
-  </ul>
-  <h3 style="margin-left:25px" v-bind:style="{ color: activeColor, font-size: fontSize }">model & event</h3>
-  <input v-model="name"><br>
-  <input type="button" value="测试" @click="resetInput">
-  <input type="button" value="增加Item" v-on:click="addItem">
+  <!--<h3 class="cls" :id="name">{{ title }}</h3>-->
+  <!--<p v-if="ifTest.show">{{"This is expression: "+ title }}, " ' , {{ ifTest.text }}</p>-->
+  <!--<p v-if="isActive">{{"This is expression: "+ title }}, " ' , {{ name }}</p>-->
+  <!--<p>Computed: {{computedData}}： <span v-html="test"></span></p>-->
+  <!--<p>title's {{ title }}</p>-->
+  <!--<p>name's {{ name }}</p>-->
+  <!--<p v-html="test"></p>-->
+  <!--<h3 class="static" v-show="isActive"-->
+  <!--v-bind:class="{ active: name === 'Vue', 'text-danger': hasError }">bind:class test</h3>-->
+  <!--<h3 v-if="isActive" v-bind:class="[isActive ? activeClass : '', errorClass]">bind:class test</h3>-->
+  <!--<ul v-show="isActive">-->
+  <!--<li v-for="item in items">-->
+  <!--{{$index}}, Parent.name: {{name}}; item: {{item.id}}, text:-->
+  <!--<span v-for="t in item.text">{{t.txt}}</span>-->
+  <!--</li>-->
+  <!--</ul>-->
+  <!--<h3 style="margin-left:25px" v-bind:style="{ color: activeColor, font-size: fontSize }">model & event</h3>-->
+  <!--<input v-model="name"><br>-->
+  <!--<input type="button" value="测试" @click="resetInput">-->
+  <!--<input type="button" value="增加Item" v-on:click="addItem">-->
+
+  <!-- checkbox test -->
+  <input type="checkbox" id="jack" value="Jack" v-model="checkedNames">
+  <label for="jack">Jack</label>
+  <input type="checkbox" id="john" value="John" v-model="checkedNames">
+  <label for="john">John</label>
+  <input type="checkbox" id="mike" value="Mike" v-model="checkedNames">
+  <label for="mike">Mike</label>
+  <br>
+  <span>Checked names: {{ checkedNames }}</span>
+  <br><hr>
+
+  <!-- radio test -->
+  <input type="radio" id="one" value="One" name="picked" v-model="picked">
+  <label for="one">One</label>
+  <br>
+  <input type="radio" id="two" value="Two" name="picked" v-model="picked">
+  <label for="two">Two</label>
+  <br>
+  <span>Picked: {{ picked }}</span>
 </div>
 
 <script>
   var vm = new Vueuv({
-    el      : '#app',
-    data    : {
-      name       : 'Vue',
-      title      : 'Hello',
-      test       : '\<input type="text" v-model="title"\>',
-      items      : [
+    el: '#app',
+    data: {
+      name: 'Vue',
+      title: 'Hello',
+      test: '\<input type="text" v-model="title"\>',
+      items: [
         {id: '10000', text: [{txt: 'start'}, {txt: ',10000,'}, {txt: 'end'},]},
         {id: '10001', text: [{txt: 'start'}, {txt: ',10001,'}, {txt: 'end'},]},
         {id: '10002', text: [{txt: 'start'}, {txt: ',10002,'}, {txt: 'end'},]},
       ],
-      isActive   : true,
-      hasError   : false,
+      isActive: true,
+      hasError: false,
       activeColor: 'blue',
-      fontSize   : '18px',
+      fontSize: '18px',
       activeClass: 'active-class',
-      errorClass : 'error-class',
-      ifTest     : {show: true, text: '=========='},
+      errorClass: 'error-class',
+      ifTest: {show: true, text: '=========='},
+      checkedNames: [],
+      picked: '',
     },
     computed: {
       computedData: function () {
         return this.title + ', ' + this.name;
       },
     },
-    methods : {
+    methods: {
       resetInput: function () {
         this.name = 'reset input';
         this.test = '\<input type="text" v-model="name"\>';
@@ -70,7 +92,7 @@
         this.activeClass = 'active-class-changed';
         this.ifTest = {show: !this.ifTest.show, text: 'if test' + Date.now()};
       },
-      addItem   : function () {
+      addItem: function () {
         this.items.push({id: 'push', text: [{txt: 'push'}, {txt: ',11111,'}, {txt: 'push'}]});
         this.items[2].text.unshift({txt: 'nest array unshift'});
       }
