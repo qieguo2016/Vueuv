@@ -8,10 +8,13 @@
 </head>
 <body>
 <div id="app">
-  <h3 class="cls" v-bind:id="name">{{ title }}</h3>
+  <h3 class="cls" :id="name">{{ title }}</h3>
   <p v-if="isActive">{{"This is expression: "+ title }}, " ' , {{ name }}</p>
-  <p>Computed: {{computedData}}： <span v-html="test"></span></span></p>
-  <h3 class="static" v-bind:class="{ active: name === 'Vue', 'text-danger': hasError }">v-for</h3>
+  <p>Computed: {{computedData}}： <span v-html="test"></span></p>
+  <h3 class="static"
+      v-show="isActive"
+      :class="{ active: name === 'Vue', 'text-danger': hasError }">bind:class test</h3>
+  <h3 v-if="isActive" v-bind:class="[isActive ? activeClass : '', errorClass]">bind:class test</h3>
   <ul v-show="isActive">
     <li v-for="item in items">
       Parent.name: {{name}}; item: {{item.id}}, text:
@@ -19,8 +22,9 @@
     </li>
   </ul>
   <h3 style="margin-left:25px" v-bind:style="{ color: activeColor, font-size: fontSize }">model & event</h3>
-  <input v-model="name">
+  <input v-model="name"><br>
   <input type="button" value="测试" v-on:click="resetInput">
+  <input type="button" value="增加Item" @click="addItem">
 </div>
 
 <script>
@@ -39,6 +43,8 @@
       hasError   : false,
       activeColor: 'blue',
       fontSize   : '18px',
+      activeClass: 'active-class',
+      errorClass : 'error-class',
     },
     computed: {
       computedData: function () {
@@ -51,10 +57,16 @@
         this.test = '\<input type="date"\>';
         this.items[1].text[0].txt = 'changed text';
         this.isActive = !this.isActive;
-        fontSize = '28px';
+        this.fontSize = '28px';
+        this.activeClass = 'active-class-changed';
+      },
+      addItem   : function () {
+        this.items.push({id: 'push', text: [{txt: 'push'}, {txt: ',11111,'}, {txt: 'push'}]});
+        this.items[2].text.unshift({txt: 'nest array unshift'});
       }
     }
   });
+
 </script>
 </body>
 </html>

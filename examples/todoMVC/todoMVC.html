@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>todoMVC -- Vueuv</title>
+  <link href="/favicon.ico" rel="shortcut icon">
+  <link rel="stylesheet" href="./iconoo.min.css">
+  <link rel="stylesheet" href="./index.css">
+  <script src="../../src/Compiler.js"></script>
+  <script src="../../src/Dependence.js"></script>
+  <script src="../../src/Observer.js"></script>
+  <script src="../../src/Watcher.js"></script>
+  <script src="../../src/util.js"></script>
+  <script src="../../src/Vueuv.js"></script>
+</head>
+<body>
+<div id="app">
+  <section class="todoapp">
+    <header class="header">
+      <h1>todos</h1>
+      <input class="new-todo"
+             type="text"
+             placeholder="What needs to be done?"
+             v-model="newTodo"
+             @keyup="addTodo">
+    </header>
+    <section class="main">
+      <ul class="todo-list">
+        <li class="todo"
+            v-for="todo in displayTodos">
+          <div class="view" :class="{completed: todo.completed,editing: todo.editing}">
+            <span class="toggle" @click="completeTodo(todo)"></span>
+            <label @dblclick="editTodo(todo)">{{ todo.title }}</label>
+            <button class="destroy" @click="removeTodo(todo)"></button>
+          </div>
+          <input class="edit"
+                 :class="{editing: todo.editing}"
+                 type="text"
+                 v-model="todo.title"
+                 @blur="doneEdit(todo)">
+          <!--@keyup.enter="doneEdit(todo)"-->
+          <!--@keyup.esc="cancelEdit(todo)">-->
+        </li>
+      </ul>
+    </section>
+    <footer class="footer">
+      <span class="todo-count">{{activeTodos.length}} items left</span>
+      <ul class="filters">
+        <li><a :class="{ selected: displayType == 'all' }" @click="changeDisplayType('all')">All</a></li>
+        <li><a :class="{ selected: displayType == 'active' }" @click="changeDisplayType('active')">Active</a></li>
+        <li><a :class="{ selected: displayType == 'completed' }" @click="changeDisplayType('completed')">Completed</a>
+        </li>
+      </ul>
+    </footer>
+  </section>
+  <footer class="info">
+    <p>Double-click to edit a todo</p>
+    <p>Written by <a href="https://github.com/qieguo2016">Qieguo</a></p>
+  </footer>
+</div>
+
+<script>
+
+  var vm = new Vueuv({
+    el: '#app',
+    data: {
+      newTodo: '',
+      todos: [],
+      displayType: '',
+    },
+    methods: {
+      addTodo: function (e) {
+        var value = e.target.value;
+        if (e.keyCode === 13 && value) {
+          this.todos.push({
+            completed: false,
+            editing: false,
+            title: value
+          });
+          this.newTodo = '';
+        }
+      },
+      removeTodo: function (todo) {
+        this.todos.$remove(todo);
+      },
+      completeTodo: function (todo) {
+        todo.completed = !todo.completed;
+      },
+      editTodo: function (todo) {
+        todo.editing = true;
+      },
+      doneEdit: function (todo) {
+        if (!todo.editing) {
+          return
+        }
+        todo.title = todo.title.trim();
+        if (!todo.title) {
+          this.removeTodo(todo)
+        }
+        todo.editing = false;
+      },
+      changeDisplayType: function (type) {
+        this.displayType = type;
+      },
+    },
+    computed: {
+      activeTodos: function () {
+        return this.todos.filter(function (item) {
+          return item.completed === false;
+        });
+      },
+      displayTodos: function () {
+        var self = this;
+        return this.todos.filter(function (item) {
+          switch (self.displayType) {
+            case 'active':
+              return item.completed === false;
+            case 'completed':
+              return item.completed === true;
+              break;
+            default:
+              return true;
+          }
+        });
+      },
+    },
+  });
+
+</script>
+</body>
+</html>

@@ -6,9 +6,19 @@ MVVM原理实现非常巧妙，真心佩服作者的构思；编译部分没用�
 
 > 不造个轮子，你还真以为你会写代码了？
 
+
+**更新 @2016.12.21**
+
+- 增加了`v-html`指令的更新编译，更改`v-html`中的值时，也会解析新值内的指令。
+- 修改了`v-on`指令的事件绑定实现，支持表达式、函数名、函数调用这三种语法：`@click="count=count+1"`，`@click="yourFn"`、`@click="addItem(item)"`
+
+**更新 @2016.12.20**
+
+- 增加了数组的监控，绑定指令总算是完整了！！实现原理也补充到下文了，因为跟对象监控原理差不多，就没详细展开写。手指好累，不多说了，我先去楼下的大保健按摩下。哟吼吼吼~~:(
+
 ## How to use
 
-引入[Vueuv.js](https://github.com/qieguo2016/vueuv/master/dist/Vueuv.js)后，用法就跟Vue一毛一样了：
+引入[Vueuv.js](https://github.com/qieguo2016/Vueuv/blob/master/dist/Vueuv.js)后，用法就跟Vue一毛一样了：
 
 ```html
 <div id="app">
@@ -33,8 +43,8 @@ var app = new Vue({
 </div>
 ```
 
-其他的指令也是一样的语法，更多指令请看Vue的文档http://cn.vuejs.org/v2/guide/，这里就不再赘述了。
-现在Vueuv还没加Filter语法，另外CSS和style指令暂时只支持对象语法，数组语法还没来得及做，以后爽了的时候我会考虑补上去的。
+其他的指令也是一样的语法，也支持缩写啥的，更多指令请看Vue的文档http://cn.vuejs.org/v2/guide/，这里就不再赘述了。
+现在Vueuv还没加Filter语法，但是可以使用computed方法来实现同样的效果，以后我会视心情而考虑补上这个filter的。
 
 ***代码目前还是用es5写的，打包也是手动拼装的，这方面不打算折腾了，下面来点干货，分享下基本实现和编码过程的一些思考吧。***
 
@@ -99,7 +109,6 @@ Observer.prototype.observe = function (data) {
 Observer.prototype.defineReactive = function (data, key, val) {
 	var dep = new Dep();
 	var self = this;
-	self.observe(val);   // 递归对象属性到基本类型为止
 	Object.defineProperty(data, key, {
 		enumerable  : true,    // 枚举
 		configurable: false,   // 不可再配置
@@ -112,14 +121,24 @@ Observer.prototype.defineReactive = function (data, key, val) {
 				return;
 			}
 			val = newVal;  // setter本身已经做了赋值，val作为一个闭包变量，保存最新值
-			self.observe(newVal);
+			if (Array.isArray(newVal)) {
+      	self.observeArray(newVal, dep);  // 递归监视，数组的监视要分开
+      } else {
+      	self.observe(newVal);   // 递归对象属性到基本类型为止
+      }
 			dep.notify();  // 触发通知
 		},
 	});
+	if (Array.isArray(val)) {
+  	self.observeArray(val, dep);  // 递归监视，数组的监视要分开
+  } else {
+  	self.observe(val);   // 递归对象属性到基本类型为止
+  }
 };
 ```
 
 setter里面跟我们想的一样，更新数据的时候发出通知，这里我们可能会漏掉的是对newVal的监控，设置值之后当然也要监控新值了。
+
 再看看getter，可以看到依赖列表是在getter里面添加的！并不是在解析的时候另调用一个方法来创建依赖列表！
 而且依赖列表是作为一个闭包存在，每个变量单独一个列表！并不是像我想的那样用一个全局的结构来保存依赖列表！
 而由于getter除了初次编译之外后面每次使用都会触发，所以还增加了一个标识来控制是否添加依赖列表，为了能从外部传入，标识挂在了Dep构造函数上！
@@ -167,10 +186,11 @@ Watcher.prototype = {
 	},
 	update: function () {
 		var newVal = this.get();
-		if (this.value != newVal) {
-			this.callback && this.callback(newVal, this.value);
-			this.value = newVal;
-		}
+		// 这里有可能是对象/数组，所以不能直接比较，可以借助JSON来转换成字符串对比
+    if (!isEqual(this.value, newVal)) {
+    	this.callback && this.callback(newVal, this.value, options);
+    	this.value = fullCopy(newVal);
+    }
 	}
 }
 ```
@@ -217,10 +237,12 @@ Compiler.prototype = {
 		this.textHandler(node, scope, exp);
 	},
 	compileElementNode: function (node, scope) {
-		var attrs = node.attributes;
+		// var attrs = node.attributes;
+		var attrs = [].slice.call(node.attributes);
 		var self = this;
 		scope = scope || this.vm;
-		[].forEach.call(attrs, function (attr) {
+		// [].forEach.call(attrs, function (attr) { // attributes是动态的，会漏点某些属性
+		attrs.forEach(function (attr) {
 			var attrName = attr.name;
 			var exp = attr.value;
 			var dir = checkDirective(attrName);
@@ -274,7 +296,9 @@ Compiler.prototype = {
 
 2) 变量绑定非常简单，要注意的作用域要以参数的形式传进来，这样才能做各个层次的绑定。而不同的指令有不同的处理方式，下面简单介绍比较有意思的指令编译
 
-model双向绑定(v-model="expression")，这里比较有意思的我既要使用监视器来更新input的value，又要用value去更新vm的数据，所以在输入的时候就形成了一个循环依赖了。
+**model双向绑定(v-model="expression")**
+
+这里比较有意思的我既要使用监视器来更新input的value，又要用value去更新vm的数据，所以在输入的时候就形成了一个循环依赖了。
 当然，更新函数会判断新旧值，只有新旧值不同才调用更新方法。然后，我们的中文输入法却因此而不能正常工作了：
 input事件的value取值会取拼音字母，然后更新函数直接将字母拿去反过来更新了value，所以根本就不能选词了。解决办法非常简单，在事件中加入一个标志就可以了，更新方法里面判断这个标志来判断是否要更新。
 
@@ -301,7 +325,9 @@ Compiler.prototype = {
 }
 ```
 
-if/for指令的懒编译：想象一下if为false的时候你先编译了父元素，然后，然后就没有了！！所以，要先编译子元素，然后编译父元素根据值来判断是否要保留Dom节点。
+**if/for指令的懒编译**
+
+想象一下if为false的时候你先编译了父元素，然后，然后就没有了！！所以，要先编译子元素，然后编译父元素根据值来判断是否要保留Dom节点。
 还有就是指令本身也要在编译完别的指令才编译，否则你节点都没有了，别的指令还怎么编译？当你if为true的时候，没编译的指令就有问题了，所以要最后编译if。
 for也是同理，先编译好其他指令，最后只需要克隆一下节点就可以了，不需要反复编译相同的指令。
 
@@ -337,7 +363,9 @@ Compiler.prototype = {
 }
 ```
 
-**for指令的编译：指令里面最有意思的就是这个for指令了！最有意思的地方就是，实现子元素的绑定取值。** 比如一个指令:
+**for指令的编译**
+
+**指令里面最有意思的莫过于这个for指令了！最有意思的地方就是，实现子元素的绑定取值。** 比如一个指令:
 
 ```html
 <li v-for="item in items">
@@ -373,7 +401,6 @@ Compiler.prototype = {
 对的，就是用Object.create(scope)将forScope的原型链绑定到父级上，然后forScope.name就是scope.name了。
 看起来，这里用forScope=scope也可以呀，但是这样的话，`forScope[itemName]`就是同一个对象了，没有列表的效果了。
 再者，虽然可以深复制scope造出列表，但是与scope脱离了关系，没有绑定的关系了！**所以，这里还是要用原型链！**
-
 
 3) Compiler里面还有一个比较重要的点就是更新视图方法。
 这里说说if指令的更新方法，为了要在指定位置插入节点，我们可以先在该位置加一个占位的textNode，然后将这个textNode传给更新方法，
@@ -520,7 +547,118 @@ Vueuv.prototype = {
 
 -------
 
-以上就是Vue MVVM双向绑定的简易实现了，Vue里面还有一个非常重要的点就是component的实现。这也是Vue能这么火的关键因素吧，
+## 【补充】数组监视 @2016.12.20
+
+for指令还要监视数组的动态变化从而增减for绑定的视图项。回到Observer中，现在要区别对待数组和对象，在哪里做分支比较好呢？
+想象一下我们的使用场景，有时候我们可能会对整个数组进行set操作，所以，数组本身的set也是要被监视的，因此可以想到是要在劫持了set之后进行分支，也就是遍历子元素的方式做区分。
+当然，也不要忘了setter内部的递归监视新值，不然设置的新值就没有监视了。
+
+```javascript
+Observer.prototype = {
+  // ...
+	observeObject: function (data, key, val) {
+		var dep = new Dep();   // 每个变量单独一个dependence列表
+		var self = this;
+		Object.defineProperty(data, key, {
+			// ...
+			set         : function (newVal) {
+				if (val === newVal) {
+					return;
+				}
+				val = newVal;  // setter本身已经做了赋值，val作为一个闭包变量，保存最新值
+				if (Array.isArray(newVal)) {
+					self.observeArray(newVal, dep);  // 递归监视，数组的监视要分开
+				} else {
+					self.observe(newVal);   // 递归对象属性到基本类型为止
+				}
+				dep.notify();  // 触发通知
+			},
+		});
+		if (Array.isArray(val)) {
+			self.observeArray(val, dep);  // 递归监视，数组的监视要分开
+		} else {
+			self.observe(val);   // 递归对象属性到基本类型为止
+		}
+	},
+};
+```
+
+接着看数组的监控，实现方法是通过监视数组的几个变异方法来实现的，也就是更改数组的原型链。
+在调用那些会更改数组的方法时，发出变更通知，原理跟对象的监视也是一毛一样的，直接看代码吧。
+
+```javascript
+Observer.prototype = {
+  // ...
+	observeArray: function (arr, dep) {
+		var self = this;
+		arr.__proto__ = self.defineReactiveArray(dep);
+		arr.forEach(function (item) {
+			self.observe(item);
+		});
+	},
+	defineReactiveArray: function (dep) {
+		var arrayPrototype = Array.prototype;
+		var arrayMethods = Object.create(arrayPrototype);
+		var self = this;
+
+		// 重写/定义数组变异方法
+		var methods = [
+			'pop',
+			'push',
+			'sort',
+			'shift',
+			'splice',
+			'unshift',
+			'reverse'
+		];
+
+		methods.forEach(function (method) {
+			// 得到单个方法的原型对象，不能直接修改整个Array原型，那是覆盖
+			var original = arrayPrototype[method];
+			// 给数组方法的原型添加监监视
+			Object.defineProperty(arrayMethods, method, {
+				value       : function () {
+					// 获取函数参数
+					var args = [];
+					for (var i = 0, l = arguments.length; i < l; i++) {
+						args.push(arguments[i]);
+					}
+					// 数组方法的实现
+					var result = original.apply(this, args);
+					// 数组插入项
+					var inserted
+					switch (method) {
+						case 'push':
+						case 'unshift':
+							inserted = args
+							break
+						case 'splice':
+							inserted = args.slice(2)
+							break
+					}
+					// 监视数组插入项，而不是重新监视整个数组
+					if (inserted && inserted.length) {
+						self.observeArray(inserted, dep)
+					}
+					// 触发更新
+					dep.notify({method, args});
+					return result
+				},
+				enumerable  : true,
+				writable    : true,
+				configurable: true
+			});
+		});
+	return arrayMethods;
+}
+};
+```
+
+-------
+
+补齐了数组监视，Vue MVVM双向绑定的简易实现就完整啦！（泪奔！。。。）
+
+Vue里面还有一个非常重要的点就是component的实现。这也是Vue能这么火的关键因素吧，
 component可以看做是上述实现的一个子集，为了实现组件间的通信而增加了prop和event。
 vue中的prop是父到子的单向数据流，event则是组件间的订阅/发布者。实现的思路想了下，不过要做的东西不少，所以看心情吧，爽了的时候再补上~~
 

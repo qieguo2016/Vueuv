@@ -67,9 +67,6 @@
 	/**
 	 * Compiler，实现对模板的编译，提取指令并将vm与视图关联起来
 	 */
-
-	var $$id = 0;
-
 	function Compiler(options) {
 		// create node
 		this.$el = options.el;
@@ -90,7 +87,6 @@
 		// 编译主体，遍历子元素
 		compile: function (node, scope) {
 			var self = this;
-			node.$id = $$id++;
 			if (node.childNodes && node.childNodes.length) {
 				[].slice.call(node.childNodes).forEach(function (child) {
 					if (child.nodeType === 3) {
@@ -186,52 +182,15 @@
 			}
 		},
 
-		/**
-		 * model双向绑定，v-model="expression"
-		 * 不同的元素绑定的值不同：checkbox、radio绑定的是checked，其他为value
-		 * 不同的元素也有不同的处理方式：checkbox处理value数组，其他处理value的单值
-		 * */
+		// model双向绑定，v-model="expression"
 		modelHandler: function (node, scope, exp, prop) {
 			if (node.tagName.toLowerCase() === 'input') {
-				switch (node.type) {
-					case 'checkbox':
-						console.log('exp', exp);
-						this.bindWatcher(node, scope, exp, 'checkbox');
-						node.addEventListener('change', function (e) {
-							var target = e.target;
-							var value = target.value || target.$id;
-							var index = scope[exp].indexOf(value);
-							if (target.checked && index < 0) {
-								scope[exp].push(value);
-							} else if (!target.checked && index > -1) {
-								scope[exp].splice(index, 1);
-							}
-						});
-						break;
-					case 'radio':
-						this.bindWatcher(node, scope, exp, 'radio');
-						node.addEventListener('change', function (e) {
-							var target = e.target;
-							if (target.checked) {
-								scope[exp] = target.value;
-							}
-						});
-						break;
-					case 'file':
-						this.bindWatcher(node, scope, exp, 'value');
-						node.addEventListener('change', function (e) {
-							var newValue = e.target.value;
-							scope[exp] = newValue;
-						});
-						break;
-					default:
-						this.bindWatcher(node, scope, exp, 'value');
-						node.addEventListener('input', function (e) {
-							node.isInputting = true;   // 由于上面绑定了自动更新，循环依赖了，中文输入法不能用。这里加入一个标志避开自动update
-							var newValue = e.target.value;
-							scope[exp] = newValue;
-						});
-				}
+				this.bindWatcher(node, scope, exp, 'value');
+				node.addEventListener('input', function (e) {
+					node.isInputting = true;   // 由于上面绑定了自动更新，循环依赖了，中文输入法不能用。这里加入一个标志避开自动update
+					var newValue = e.target.value;
+					scope[exp] = newValue;
+				});
 			}
 		},
 
@@ -427,10 +386,10 @@
 	}
 
 	var updater = {
-		text: function (node, newVal) {
+		text : function (node, newVal) {
 			node.textContent = typeof newVal === 'undefined' ? '' : newVal;
 		},
-		html: function (node, newVal) {
+		html : function (node, newVal) {
 			node.innerHTML = typeof newVal == 'undefined' ? '' : newVal;
 		},
 		value: function (node, newVal) {
@@ -440,16 +399,7 @@
 			}
 			node.isInputting = false;  // 记得要重置标志
 		},
-		checkbox: function (node, newVal) {
-			// 处理数组
-			var value = node.value || node.$id;
-			if (newVal.indexOf(value) < 0) {
-				node.checked = false;
-			} else {
-				node.checked = true;
-			}
-		},
-		attr: function (node, newVal, attrName) {
+		attr : function (node, newVal, attrName) {
 			newVal = typeof newVal === 'undefined' ? '' : newVal;
 			node.setAttribute(attrName, newVal);
 		},
@@ -460,7 +410,7 @@
 			}
 			node.style[attrName] = newVal;
 		},
-		dom: function (node, newVal, nextNode) {
+		dom  : function (node, newVal, nextNode) {
 			if (newVal) {
 				nextNode.parentNode.insertBefore(node, nextNode);
 			} else {
@@ -505,7 +455,6 @@
 	}
 
 	Observer.prototype = {
-
 		// 监视主控函数
 		observe: function (data) {
 			var self = this;
@@ -517,7 +466,6 @@
 				self.observeObject(data, key, data[key]);
 			});
 		},
-
 		// 监视对象，劫持Obect的getter、setter实现
 		observeObject: function (data, key, val) {
 			var dep = new Dep();   // 每个变量单独一个dependence列表
@@ -549,7 +497,6 @@
 				self.observe(val);   // 递归对象属性到基本类型为止
 			}
 		},
-
 		// 监视数组
 		observeArray: function (arr, dep) {
 			var self = this;
@@ -558,7 +505,6 @@
 				self.observe(item);
 			});
 		},
-
 		// 改写Array的原型实现数组监视
 		defineReactiveArray: function (dep) {
 			var arrayPrototype = Array.prototype;
@@ -590,7 +536,7 @@
 						// 数组方法的实现
 						var result = original.apply(this, args);
 						// 数组插入项
-						var inserted
+						var inserted;
 						switch (method) {
 							case 'push':
 							case 'unshift':
@@ -633,13 +579,12 @@
 			 */
 			Object.defineProperty(arrayMethods, '$remove', {
 				value: function (item) {
-					var index = this.indexOf(item);
+					let index = this.indexOf(item);
 					if (index > -1) {
 						return this.splice(index, 1);
 					}
 				}
 			});
-
 
 			return arrayMethods;
 		}
