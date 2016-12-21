@@ -12,6 +12,10 @@
 }(this, function () {
 
 	/**
+	 * Util/Helper方法，不多就不区分了。
+	 */
+
+	/**
 	 * 是否相等，包括基础类型和对象/数组的对比
 	 */
 	function isEqual(a, b) {
@@ -32,7 +36,7 @@
 	/**
 	 * 复制对象，若为对象则深度复制
 	 */
-	function fullCopy(from) {
+	function deepCopy(from) {
 		var r;
 		if (isObject(from)) {
 			r = JSON.parse(JSON.stringify(from));
@@ -42,7 +46,23 @@
 		return r;
 	}
 
+	/**
+	 * 解析表达式
+	 * with+eval会将表达式中的变量绑定到vm模型中，从而实现对变量的取值
+	 * 被compiler和Watcher调用
+	 */
+	function computeExpression(exp, scope) {
+		try {
+			with (scope) {
+				return eval(exp);
+			}
+		} catch (e) {
+			console.error('ERROR', e);
+		}
+	}
+
 	// =======================  Utils End  ===================== //
+
 
 	/**
 	 * Compiler，实现对模板的编译，提取指令并将vm与视图关联起来
@@ -91,7 +111,7 @@
 
 		// 编译节点元素，调用相应的指令处理方法或者调用compile继续编译
 		compileElementNode: function (node, scope) {
-			var attrs = [].slice.call(node.attributes);
+			var attrs = [].slice.call(node.attributes);  // attributes是动态的，要复制到数组里面去遍历
 			var lazyCompileDir = '';
 			var lazyCompileExp = '';
 			var self = this;
@@ -101,7 +121,7 @@
 				var exp = attr.value;
 				var dir = checkDirective(attrName);
 				if (dir.type) {
-					if (dir.type === 'for') {
+					if (dir.type === 'for' || dir.type === 'if') {
 						lazyCompileDir = dir.type;
 						lazyCompileExp = exp;
 					} else {
@@ -111,7 +131,6 @@
 						} else {
 							console.error('找不到' + dir.type + '指令');
 						}
-						// self[dir.type + 'Handler'] && self[dir.type + 'Handler'](node, scope, exp, dir.prop);
 					}
 					node.removeAttribute(attrName);
 				}
@@ -146,11 +165,20 @@
 		 * v-pre、v-cloak、v-once：控制不编译、保持内容不变，单次编译暂时不做：
 		 * */
 
-		// 绑定事件，v-on:click="handler"
+		// 绑定事件，三种形式：v-on:click="handler"， v-on:click="add($index)"， v-on:click="count=count+1"
 		onHandler: function (node, scope, exp, eventType) {
+			if (!eventType) {
+				return console.error('绑定方法有误');
+			}
+			// 函数名
 			var fn = scope[exp];
-			if (eventType && fn) {
+			if (typeof fn === 'function') {
 				node.addEventListener(eventType, fn.bind(scope));  // bind生成一个绑定this的新函数，而call和apply只是调用
+			} else {
+				// 表达式和add(item)，使用computeExpression(exp, scope)
+				node.addEventListener(eventType, function () {
+					computeExpression(exp, scope);
+				});
 			}
 		},
 
@@ -166,9 +194,14 @@
 			}
 		},
 
-		// html指令 v-html="expression" @FIXME 变更需要重新编译子元素
+		// html指令 v-html="expression"
 		htmlHandler: function (node, scope, exp, prop) {
-			this.bindWatcher(node, scope, exp, 'html');
+			var updateFn = updater.html;
+			var self = this;
+			var watcher = new Watcher(exp, scope, function (newVal) {
+				updateFn && updateFn(node, newVal, prop);
+				self.compile(node, scope);
+			});
 		},
 
 		// text指令 v-text="expression"
@@ -218,10 +251,6 @@
 			var self = this;
 			var itemName = exp.split('in')[0].replace(/\s/g, '')
 			var arrNames = exp.split('in')[1].replace(/\s/g, '').split('.');
-			var arr = scope[arrNames[0]];
-			if (arrNames.length === 2) {
-				arr = arr[arrNames[1]];
-			}
 			var parentNode = node.parentNode;
 			var startNode = document.createTextNode('');
 			var endNode = document.createTextNode('');
@@ -229,53 +258,19 @@
 			parentNode.replaceChild(endNode, node); // 去掉原始模板
 			parentNode.insertBefore(startNode, endNode);
 			var watcher = new Watcher(arrNames.join('.'), scope, function (newArray, oldArray, options) {
-				// @todo 可以根据options传过来的method和args像操作数组一样操作dom
+				// 目前是全量更新，@todo 可以根据options传过来的method和args像操作数组一样操作dom
 				range.setStart(startNode, 0);
 				range.setEnd(endNode, 0);
 				range.deleteContents();
-				newArray.forEach(function (item) {
+				newArray.forEach(function (item, index) {
 					var cloneNode = node.cloneNode(true);
 					parentNode.insertBefore(cloneNode, endNode);
-					var forScope = Object.create(scope);  // 注意每次循环要生成一个新对象
-					forScope[itemName] = item;
+					var forScope = Object.create(scope);  // for循环内作用域绑定在当前作用域之下，注意每次循环要生成一个新对象
+					forScope.$index = index;   // 增加$index下标
+					forScope[itemName] = item;  // 绑定item作用域
 					self.compile(cloneNode, forScope);  // @FIXME 同样的编译应该有缓存机制
 				});
 			});
-		},
-	};
-
-	// 更新视图的方法集合
-	var updater = {
-		text : function (node, newVal) {
-			node.textContent = typeof newVal === 'undefined' ? '' : newVal;
-		},
-		html : function (node, newVal) {
-			node.innerHTML = typeof newVal == 'undefined' ? '' : newVal;
-		},
-		value: function (node, newVal) {
-			// 当有输入的时候循环依赖了，中文输入法不能用。这里加入一个标志避开自动update
-			if (!node.isInputting) {
-				node.value = newVal ? newVal : '';
-			}
-			node.isInputting = false;  // 记得要重置标志
-		},
-		attr : function (node, newVal, attrName) {
-			newVal = typeof newVal === 'undefined' ? '' : newVal;
-			node.setAttribute(attrName, newVal);
-		},
-		style: function (node, newVal, attrName) {
-			newVal = typeof newVal === 'undefined' ? '' : newVal;
-			if (attrName === 'display') {
-				newVal = newVal ? 'initial' : 'none';
-			}
-			node.style[attrName] = newVal;
-		},
-		dom  : function (node, newVal, nextNode) {
-			if (newVal) {
-				nextNode.parentNode.insertBefore(node, nextNode);
-			} else {
-				nextNode.parentNode.removeChild(node);
-			}
 		},
 	};
 
@@ -316,7 +311,7 @@
 		return dir;
 	}
 
-	// 解析文本表达式 @todo 未包含pipe语法
+	// 解析文本表达式，未包含pipe语法，但是pipe语法其实可以用computed函数实现
 	function parseTextExp(text) {
 		var regText = /\{\{(.+?)\}\}/g;
 		var pieces = text.split(regText);
@@ -335,8 +330,8 @@
 	}
 
 	/**
-	 * 解析class表达式
-	 * <div class="static" v-bind:class="{ active: isActive, 'text-danger': hasError }"> </div>
+	 * 解析class表达式，eg：
+	 * <div class="static" v-bind:class="{ active: isActive, 'text-danger': hasError }"></div>
 	 * <div v-bind:class="[isActive ? activeClass : '', errorClass]">
 	 */
 	function parseClassExp(exp) {
@@ -363,7 +358,7 @@
 	}
 
 	/**
-	 * 解析style表达式 @todo 目前未写单个对象语法和数组语法
+	 * 解析style表达式 @todo 目前未写单个对象语法和数组语法，eg：
 	 * <div v-bind:style="{ color: activeColor, font-size: fontSize }"></div>
 	 * <div v-bind:style="[baseStyles, overridingStyles]">
 	 */
@@ -390,7 +385,42 @@
 		return result.join('+');  // 拼成 (a?"acls ":"")+(b?"bcls ":"")的形式
 	}
 
+	var updater = {
+		text : function (node, newVal) {
+			node.textContent = typeof newVal === 'undefined' ? '' : newVal;
+		},
+		html : function (node, newVal) {
+			node.innerHTML = typeof newVal == 'undefined' ? '' : newVal;
+		},
+		value: function (node, newVal) {
+			// 当有输入的时候循环依赖了，中文输入法不能用。这里加入一个标志避开自动update
+			if (!node.isInputting) {
+				node.value = newVal ? newVal : '';
+			}
+			node.isInputting = false;  // 记得要重置标志
+		},
+		attr : function (node, newVal, attrName) {
+			newVal = typeof newVal === 'undefined' ? '' : newVal;
+			node.setAttribute(attrName, newVal);
+		},
+		style: function (node, newVal, attrName) {
+			newVal = typeof newVal === 'undefined' ? '' : newVal;
+			if (attrName === 'display') {
+				newVal = newVal ? 'initial' : 'none';
+			}
+			node.style[attrName] = newVal;
+		},
+		dom  : function (node, newVal, nextNode) {
+			if (newVal) {
+				nextNode.parentNode.insertBefore(node, nextNode);
+			} else {
+				nextNode.parentNode.removeChild(node);
+			}
+		},
+	};
+
 	// =======================  Compiler End  ===================== //
+
 
 	/**
 	 * Dependence，表达式的依赖列表
@@ -415,6 +445,7 @@
 
 	// =======================  Dependence End  ===================== //
 
+
 	/**
 	 * Observer，实现对viewModel的监视，当发生变更时发出变更消息
 	 */
@@ -424,7 +455,6 @@
 	}
 
 	Observer.prototype = {
-
 		// 监视主控函数
 		observe: function (data) {
 			var self = this;
@@ -436,7 +466,6 @@
 				self.observeObject(data, key, data[key]);
 			});
 		},
-
 		// 监视对象，劫持Obect的getter、setter实现
 		observeObject: function (data, key, val) {
 			var dep = new Dep();   // 每个变量单独一个dependence列表
@@ -447,7 +476,6 @@
 				get         : function () {
 					// 由于需要在闭包内添加watcher，所以通过Dep定义一个全局target属性，暂存watcher, 添加完移除
 					Dep.target && dep.addSub(Dep.target);
-					// console.log('dep.subs', dep.subs);
 					return val;
 				},
 				set         : function (newVal) {
@@ -455,9 +483,8 @@
 						return;
 					}
 					val = newVal;  // setter本身已经做了赋值，val作为一个闭包变量，保存最新值
-
 					if (Array.isArray(newVal)) {
-						self.observeArray(newVal, dep);
+						self.observeArray(newVal, dep);  // 递归监视，数组的监视要分开
 					} else {
 						self.observe(newVal);   // 递归对象属性到基本类型为止
 					}
@@ -465,12 +492,11 @@
 				},
 			});
 			if (Array.isArray(val)) {
-				self.observeArray(val, dep);
+				self.observeArray(val, dep);  // 递归监视，数组的监视要分开
 			} else {
 				self.observe(val);   // 递归对象属性到基本类型为止
 			}
 		},
-
 		// 监视数组
 		observeArray: function (arr, dep) {
 			var self = this;
@@ -479,7 +505,6 @@
 				self.observe(item);
 			});
 		},
-
 		// 改写Array的原型实现数组监视
 		defineReactiveArray: function (dep) {
 			var arrayPrototype = Array.prototype;
@@ -511,7 +536,7 @@
 						// 数组方法的实现
 						var result = original.apply(this, args);
 						// 数组插入项
-						var inserted
+						var inserted;
 						switch (method) {
 							case 'push':
 							case 'unshift':
@@ -536,7 +561,8 @@
 			});
 
 			/**
-			 * 添加数组选项设置/替换方法（全局修改），提供需要修改的数组项下标 index 和新值 value
+			 * 添加数组选项设置/替换方法（全局修改）
+			 * 提供需要修改的数组项下标 index 和新值 value
 			 */
 			Object.defineProperty(arrayMethods, '$set', {
 				value: function (index, value) {
@@ -567,6 +593,7 @@
 
 	// =======================  Observer End  ===================== //
 
+
 	/**
 	 * Watcher，订阅Observer的变更消息，获取最新值计算表达式，通过回调函数（updater函数）将计算结果更新到视图上
 	 */
@@ -583,17 +610,6 @@
 		this.update();
 	}
 
-	// 解析表达式 with+eval会将表达式中的变量绑定到vm模型中，从而实现对变量的取值，
-	function computeExpression(exp, scope) {
-		try {
-			with (scope) {
-				return eval(exp);
-			}
-		} catch (e) {
-			console.error('ERROR', e);
-		}
-	}
-
 	Watcher.prototype = {
 		get   : function () {
 			Dep.target = this;
@@ -608,10 +624,13 @@
 			// 这里有可能是对象/数组，所以不能直接比较，可以借助JSON来转换成字符串对比
 			if (!isEqual(this.value, newVal)) {
 				this.callback && this.callback(newVal, this.value, options);
-				this.value = fullCopy(newVal);
+				this.value = deepCopy(newVal);
 			}
 		}
 	}
+
+	// =======================  Watcher End  ===================== //
+
 
 	/**
 	 * Vueuv，框架主体与入口，各个模块的容器，data/method/computed等的代理。
@@ -621,10 +640,7 @@
 		this.$el = typeof options.el === 'string'
 			? document.querySelector(options.el)
 			: options.el || document.body;
-
-		// 初始化options
-		options = Object.assign(
-			{},
+		options = Object.assign({},
 			{
 				computed: {},
 				methods : {}

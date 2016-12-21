@@ -59,7 +59,7 @@ Compiler.prototype = {
 			var exp = attr.value;
 			var dir = checkDirective(attrName);
 			if (dir.type) {
-				if (dir.type === 'for') {
+				if (dir.type === 'for' || dir.type === 'if') {
 					lazyCompileDir = dir.type;
 					lazyCompileExp = exp;
 				} else {
@@ -69,7 +69,6 @@ Compiler.prototype = {
 					} else {
 						console.error('找不到' + dir.type + '指令');
 					}
-					// self[dir.type + 'Handler'] && self[dir.type + 'Handler'](node, scope, exp, dir.prop);
 				}
 				node.removeAttribute(attrName);
 			}
@@ -104,11 +103,20 @@ Compiler.prototype = {
 	 * v-pre、v-cloak、v-once：控制不编译、保持内容不变，单次编译暂时不做：
 	 * */
 
-	// 绑定事件，v-on:click="handler"
+	// 绑定事件，三种形式：v-on:click="handler"， v-on:click="add($index)"， v-on:click="count=count+1"
 	onHandler: function (node, scope, exp, eventType) {
+		if (!eventType) {
+			return console.error('绑定方法有误');
+		}
+		// 函数名
 		var fn = scope[exp];
-		if (eventType && fn) {
+		if (typeof fn === 'function') {
 			node.addEventListener(eventType, fn.bind(scope));  // bind生成一个绑定this的新函数，而call和apply只是调用
+		} else {
+			// 表达式和add(item)，使用computeExpression(exp, scope)
+			node.addEventListener(eventType, function () {
+				computeExpression(exp, scope);
+			});
 		}
 	},
 
@@ -124,9 +132,14 @@ Compiler.prototype = {
 		}
 	},
 
-	// html指令 v-html="expression" @FIXME 变更需要重新编译子元素
+	// html指令 v-html="expression"
 	htmlHandler: function (node, scope, exp, prop) {
-		this.bindWatcher(node, scope, exp, 'html');
+		var updateFn = updater.html;
+		var self = this;
+		var watcher = new Watcher(exp, scope, function (newVal) {
+			updateFn && updateFn(node, newVal, prop);
+			self.compile(node, scope);
+		});
 	},
 
 	// text指令 v-text="expression"
@@ -176,10 +189,6 @@ Compiler.prototype = {
 		var self = this;
 		var itemName = exp.split('in')[0].replace(/\s/g, '')
 		var arrNames = exp.split('in')[1].replace(/\s/g, '').split('.');
-		var arr = scope[arrNames[0]];
-		if (arrNames.length === 2) {
-			arr = arr[arrNames[1]];
-		}
 		var parentNode = node.parentNode;
 		var startNode = document.createTextNode('');
 		var endNode = document.createTextNode('');
@@ -187,15 +196,16 @@ Compiler.prototype = {
 		parentNode.replaceChild(endNode, node); // 去掉原始模板
 		parentNode.insertBefore(startNode, endNode);
 		var watcher = new Watcher(arrNames.join('.'), scope, function (newArray, oldArray, options) {
-			// @todo 可以根据options传过来的method和args像操作数组一样操作dom
+			// 目前是全量更新，@todo 可以根据options传过来的method和args像操作数组一样操作dom
 			range.setStart(startNode, 0);
 			range.setEnd(endNode, 0);
 			range.deleteContents();
-			newArray.forEach(function (item) {
+			newArray.forEach(function (item, index) {
 				var cloneNode = node.cloneNode(true);
 				parentNode.insertBefore(cloneNode, endNode);
-				var forScope = Object.create(scope);  // 注意每次循环要生成一个新对象
-				forScope[itemName] = item;
+				var forScope = Object.create(scope);  // for循环内作用域绑定在当前作用域之下，注意每次循环要生成一个新对象
+				forScope.$index = index;   // 增加$index下标
+				forScope[itemName] = item;  // 绑定item作用域
 				self.compile(cloneNode, forScope);  // @FIXME 同样的编译应该有缓存机制
 			});
 		});
@@ -239,7 +249,7 @@ function checkDirective(attrName) {
 	return dir;
 }
 
-// 解析文本表达式 @todo 未包含pipe语法
+// 解析文本表达式，未包含pipe语法，但是pipe语法其实可以用computed函数实现
 function parseTextExp(text) {
 	var regText = /\{\{(.+?)\}\}/g;
 	var pieces = text.split(regText);
@@ -257,9 +267,11 @@ function parseTextExp(text) {
 	return tokens.join('+');
 }
 
-// 解析class表达式
-// <div class="static" v-bind:class="{ active: isActive, 'text-danger': hasError }"> </div>
-// <div v-bind:class="[isActive ? activeClass : '', errorClass]">
+/**
+ * 解析class表达式，eg：
+ * <div class="static" v-bind:class="{ active: isActive, 'text-danger': hasError }"></div>
+ * <div v-bind:class="[isActive ? activeClass : '', errorClass]">
+ */
 function parseClassExp(exp) {
 	if (!exp) {
 		return;
@@ -283,9 +295,11 @@ function parseClassExp(exp) {
 	return result.join('+');  // 拼成 (a?"acls ":"")+(b?"bcls ":"")的形式
 }
 
-// 解析style表达式 @todo 目前未写单个对象语法和数组语法
-// <div v-bind:style="{ color: activeColor, font-size: fontSize }"></div>
-// <div v-bind:style="[baseStyles, overridingStyles]">
+/**
+ * 解析style表达式 @todo 目前未写单个对象语法和数组语法，eg：
+ * <div v-bind:style="{ color: activeColor, font-size: fontSize }"></div>
+ * <div v-bind:style="[baseStyles, overridingStyles]">
+ */
 function parseStyleExp(exp) {
 	if (!exp) {
 		return;

@@ -10,7 +10,7 @@
 <div id="app">
   <h3 class="cls" :id="name">{{ title }}</h3>
   <p v-if="isActive">{{"This is expression: "+ title }}, " ' , {{ name }}</p>
-  <p>Computed: {{computedData}}： <span v-html="test"></span></span></p>
+  <p>Computed: {{computedData}}： <span v-html="test"></span></p>
   <h3 class="static"
       v-show="isActive"
       :class="{ active: name === 'Vue', 'text-danger': hasError }">bind:class test</h3>
