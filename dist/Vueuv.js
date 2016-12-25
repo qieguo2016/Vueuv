@@ -195,7 +195,6 @@
 			if (node.tagName.toLowerCase() === 'input') {
 				switch (node.type) {
 					case 'checkbox':
-						console.log('exp', exp);
 						this.bindWatcher(node, scope, exp, 'checkbox');
 						node.addEventListener('change', function (e) {
 							var target = e.target;
@@ -213,7 +212,10 @@
 						node.addEventListener('change', function (e) {
 							var target = e.target;
 							if (target.checked) {
-								scope[exp] = target.value;
+								var calExp = exp + '=`' + target.value + '`';
+								with (scope) {
+									eval(calExp);
+								}
 							}
 						});
 						break;
@@ -221,7 +223,10 @@
 						this.bindWatcher(node, scope, exp, 'value');
 						node.addEventListener('change', function (e) {
 							var newValue = e.target.value;
-							scope[exp] = newValue;
+							var calExp = exp + '=`' + newValue + '`';
+							with (scope) {
+								eval(calExp);
+							}
 						});
 						break;
 					default:
@@ -229,7 +234,10 @@
 						node.addEventListener('input', function (e) {
 							node.isInputting = true;   // 由于上面绑定了自动更新，循环依赖了，中文输入法不能用。这里加入一个标志避开自动update
 							var newValue = e.target.value;
-							scope[exp] = newValue;
+							var calExp = exp + '=`' + newValue + '`';
+							with (scope) {
+								eval(calExp);
+							}
 						});
 				}
 			}
@@ -427,13 +435,13 @@
 	}
 
 	var updater = {
-		text: function (node, newVal) {
+		text    : function (node, newVal) {
 			node.textContent = typeof newVal === 'undefined' ? '' : newVal;
 		},
-		html: function (node, newVal) {
+		html    : function (node, newVal) {
 			node.innerHTML = typeof newVal == 'undefined' ? '' : newVal;
 		},
-		value: function (node, newVal) {
+		value   : function (node, newVal) {
 			// 当有输入的时候循环依赖了，中文输入法不能用。这里加入一个标志避开自动update
 			if (!node.isInputting) {
 				node.value = newVal ? newVal : '';
@@ -449,18 +457,18 @@
 				node.checked = true;
 			}
 		},
-		attr: function (node, newVal, attrName) {
+		attr    : function (node, newVal, attrName) {
 			newVal = typeof newVal === 'undefined' ? '' : newVal;
 			node.setAttribute(attrName, newVal);
 		},
-		style: function (node, newVal, attrName) {
+		style   : function (node, newVal, attrName) {
 			newVal = typeof newVal === 'undefined' ? '' : newVal;
 			if (attrName === 'display') {
 				newVal = newVal ? 'initial' : 'none';
 			}
 			node.style[attrName] = newVal;
 		},
-		dom: function (node, newVal, nextNode) {
+		dom     : function (node, newVal, nextNode) {
 			if (newVal) {
 				nextNode.parentNode.insertBefore(node, nextNode);
 			} else {
